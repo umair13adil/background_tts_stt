@@ -10,6 +10,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import java.lang.Exception
 
 class MainActivity : FlutterActivity() {
 
@@ -27,36 +28,53 @@ class MainActivity : FlutterActivity() {
         var binaryMessenger: BinaryMessenger? = null
 
         @JvmStatic
-        fun registerWith(messenger: BinaryMessenger, context: Context) {
-            channel = MethodChannel(messenger, "speech_listener_channel")
-            channel?.setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "startService" -> {
-                        if (!isMyServiceRunning(SpeechListenService::class.java, context)) {
-                            context.startService(Intent(context, SpeechListenService::class.java))
-                            result.success("Started Speech listener service.")
-                        } else {
-                            result.success("Speech listener service already running.")
+        fun registerWith(messenger: BinaryMessenger?, context: Context?) {
+            messenger?.let {
+                channel = MethodChannel(messenger, "speech_listener_channel")
+                channel?.setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "startService" -> {
+                            context?.let {
+                                if (!isMyServiceRunning(SpeechListenService::class.java, context)) {
+                                    try {
+                                        context.startService(Intent(context, SpeechListenService::class.java))
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                    result.success("Started Speech listener service.")
+                                } else {
+                                    result.success("Speech listener service already running.")
+                                }
+                            }
                         }
+                        "stopService" -> {
+                            eventSink?.endOfStream()
+                            eventSink = null
+                            
+                            context?.let {
+                                try {
+                                    context.stopService(Intent(context, SpeechListenService::class.java))
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                                result.success("Stopped Speech listener service.")
+                            }
+                        }
+                        else -> result.notImplemented()
                     }
-                    "stopService" -> {
-                        context.stopService(Intent(context, SpeechListenService::class.java))
-                        result.success("Stopped Speech listener service.")
-                    }
-                    else -> result.notImplemented()
                 }
+
+                eventChannel = EventChannel(messenger, "speech_listener_stream")
+                eventChannel?.setStreamHandler(object : EventChannel.StreamHandler {
+                    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                        eventSink = events
+                    }
+
+                    override fun onCancel(arguments: Any?) {
+
+                    }
+                })
             }
-
-            eventChannel = EventChannel(messenger, "speech_listener_stream")
-            eventChannel?.setStreamHandler(object : EventChannel.StreamHandler {
-                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                    eventSink = events
-                }
-
-                override fun onCancel(arguments: Any?) {
-
-                }
-            })
         }
 
         @JvmStatic

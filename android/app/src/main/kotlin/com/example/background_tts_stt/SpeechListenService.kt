@@ -8,8 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.media.AudioManager.ADJUST_MUTE
-import android.os.Build.VERSION
-import android.os.Build.VERSION_CODES
+import android.media.AudioManager.ADJUST_RAISE
+import android.os.CountDownTimer
 import android.os.IBinder
 import android.util.Log
 import android.widget.Toast
@@ -24,7 +24,8 @@ import java.util.*
 class SpeechListenService : Service(), SpeechDelegate, stopDueToDelay {
 
     private val TAG = "SpeechListenService"
-    private val direction = ADJUST_MUTE
+    private val adjustMute = ADJUST_MUTE
+    private val adjustFull = ADJUST_RAISE
 
 
     override fun onCreate() {
@@ -37,27 +38,18 @@ class SpeechListenService : Service(), SpeechDelegate, stopDueToDelay {
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
-        try {
-            if (VERSION.SDK_INT >= VERSION_CODES.KITKAT) {
-                (Objects.requireNonNull(
-                        getSystemService(Context.AUDIO_SERVICE)) as AudioManager).adjustStreamVolume(AudioManager.STREAM_SYSTEM, direction, 0)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        Speech.init(this)
         delegate = this
         Speech.getInstance().setListener(this)
         if (Speech.getInstance().isListening) {
             Speech.getInstance().stopListening()
-            muteBeepSoundOfRecorder()
+            muteSounds()
         } else {
             System.setProperty("rx.unsafe-disable", "True")
             RxPermissions.getInstance(this).request(permission.RECORD_AUDIO).subscribe { granted: Boolean ->
                 if (granted) {
                     try {
                         Speech.getInstance().stopTextToSpeech()
-                        Speech.getInstance().startListening(null, this)
+                        startListening()
                     } catch (exc: SpeechRecognitionNotAvailable) {
                         Log.e(TAG, "${exc.message}")
                     } catch (exc: GoogleVoiceTypingDisabledException) {
@@ -67,7 +59,7 @@ class SpeechListenService : Service(), SpeechDelegate, stopDueToDelay {
                     Toast.makeText(this, R.string.permission_required, Toast.LENGTH_LONG).show()
                 }
             }
-            muteBeepSoundOfRecorder()
+            muteSounds()
         }
         return START_STICKY
     }
@@ -80,35 +72,30 @@ class SpeechListenService : Service(), SpeechDelegate, stopDueToDelay {
     override fun onSpeechRmsChanged(value: Float) {}
     override fun onSpeechPartialResults(results: List<String>) {
         for (partial in results) {
-            if (partial.isNotEmpty())
+            if (partial.isNotEmpty()) {
+                //resetSounds()
                 MainActivity.eventSink?.success(SpeechResult(partial, true).toString())
+            }
         }
     }
 
     override fun onSpeechResult(result: String) {
         if (result.isNotEmpty()) {
+            resetSounds()
             MainActivity.eventSink?.success(SpeechResult(result, false).toString())
         }
     }
 
     override fun onSpecifiedCommandPronounced(event: String) {
-        try {
-            if (VERSION.SDK_INT >= VERSION_CODES.KITKAT) {
-                (Objects.requireNonNull(
-                        getSystemService(Context.AUDIO_SERVICE)) as AudioManager).adjustStreamVolume(AudioManager.STREAM_SYSTEM, direction, 0)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
         if (Speech.getInstance().isListening) {
-            muteBeepSoundOfRecorder()
+            muteSounds()
             Speech.getInstance().stopListening()
         } else {
             RxPermissions.getInstance(this).request(permission.RECORD_AUDIO).subscribe { granted: Boolean ->
                 if (granted) {
                     try {
                         Speech.getInstance().stopTextToSpeech()
-                        Speech.getInstance().startListening(null, this)
+                        startListening()
                     } catch (exc: SpeechRecognitionNotAvailable) {
                         Log.e(TAG, "${exc.message}")
                     } catch (exc: GoogleVoiceTypingDisabledException) {
@@ -118,21 +105,41 @@ class SpeechListenService : Service(), SpeechDelegate, stopDueToDelay {
                     Toast.makeText(this, R.string.permission_required, Toast.LENGTH_LONG).show()
                 }
             }
-            muteBeepSoundOfRecorder()
+            muteSounds()
         }
     }
 
     /**
      * Function to remove the beep sound of voice recognizer.
      */
-    private fun muteBeepSoundOfRecorder() {
+    private fun muteSounds() {
+        Log.i(TAG, "$TAG Muting all sounds..")
         (getSystemService(Context.AUDIO_SERVICE) as AudioManager).let { audioManager ->
-            audioManager.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, direction, 0)
-            audioManager.adjustStreamVolume(AudioManager.STREAM_ALARM, direction, 0)
-            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0)
-            audioManager.adjustStreamVolume(AudioManager.STREAM_RING, direction, 0)
-            audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, direction, 0)
+            audioManager.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, adjustMute, 0)
+            audioManager.adjustStreamVolume(AudioManager.STREAM_ALARM, adjustMute, 0)
+            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, adjustMute, 0)
+            audioManager.adjustStreamVolume(AudioManager.STREAM_RING, adjustMute, 0)
+            audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, adjustMute, 0)
         }
+    }
+
+    private fun resetSounds() {
+        object : CountDownTimer(500, 500) {
+            override fun onFinish() {
+                Log.i(TAG, "$TAG Un-mute all sounds..")
+                (getSystemService(Context.AUDIO_SERVICE) as AudioManager).let { audioManager ->
+                    audioManager.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, adjustFull, 0)
+                    audioManager.adjustStreamVolume(AudioManager.STREAM_ALARM, adjustFull, 0)
+                    audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, adjustFull, 0)
+                    audioManager.adjustStreamVolume(AudioManager.STREAM_RING, adjustFull, 0)
+                    audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, adjustFull, 0)
+                }
+            }
+
+            override fun onTick(millisUntilFinished: Long) {
+            }
+
+        }.start()
     }
 
     override fun onTaskRemoved(rootIntent: Intent) { //Restarting the service if it is removed.
@@ -145,5 +152,12 @@ class SpeechListenService : Service(), SpeechDelegate, stopDueToDelay {
 
     companion object {
         var delegate: SpeechDelegate? = null
+    }
+
+    private fun startListening() {
+//        (getSystemService(Context.AUDIO_SERVICE) as AudioManager).let { audioManager ->
+//            if (!audioManager.isMusicActive && !audioManager.isSpeakerphoneOn && audioManager.isMicrophoneMute)
+                Speech.getInstance().startListening(null, this)
+//        }
     }
 }

@@ -46,8 +46,12 @@ class HomeViewModel extends StreamViewModel<SpeechResult> {
   @override
   void onData(SpeechResult data) {
     print("[$_tag] onData: ${data.toString()}");
-    _textToSpeechService.speak(data.result);
+    speak();
     super.onData(data);
+  }
+
+  void speak() async {
+    await _textToSpeechService.speak(data.result);
   }
 
   @override

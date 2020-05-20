@@ -29,8 +29,8 @@ flutter packages pub run build_runner build --delete-conflicting-outputs
 
 Speech to text is configured in Android module. Speech listening is dependent on these two values:
 
-1. Stop Listening Delay [Seconds before service will auto-stop if no voice is detected]
-2. Transition Delay [Seconds before sending complete result]
+1. Stop Listening Delay [Seconds before service should stop listening]
+2. Transition Delay [Seconds before service should start listening again]
 
 These can be configured inside Android module:
 

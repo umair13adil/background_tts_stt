@@ -15,4 +15,9 @@ class SpeechResult {
     data['isPartial'] = this.isPartial;
     return data;
   }
+
+  @override
+  String toString() {
+    return 'SpeechResult{result: $result, isPartial: $isPartial}';
+  }
 }
