@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:background_tts_stt/app/locator.dart';
 import 'package:background_tts_stt/models/speech_result.dart';
 import 'package:background_tts_stt/services/speech_listener_service.dart';
+import 'package:background_tts_stt/services/text_to_speech_service.dart';
 import 'package:stacked/stacked.dart';
 
 class HomeViewModel extends StreamViewModel<SpeechResult> {
@@ -13,6 +14,7 @@ class HomeViewModel extends StreamViewModel<SpeechResult> {
   SpeechResult get speechResult => data;
 
   var _service = locator<SpeechListenerService>();
+  var _textToSpeechService = locator<TextToSpeechService>();
 
   @override
   void initialise() {
@@ -44,6 +46,7 @@ class HomeViewModel extends StreamViewModel<SpeechResult> {
   @override
   void onData(SpeechResult data) {
     print("[$_tag] onData: ${data.toString()}");
+    _textToSpeechService.speak(data.result);
     super.onData(data);
   }
 

@@ -47,6 +47,10 @@ dependencies:
   # See: https://pub.dev/packages/injectable:
   injectable:
 
+  # Text to Speech
+  # See: https://pub.dev/packages/flutter_tts:
+  flutter_tts: ^1.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
